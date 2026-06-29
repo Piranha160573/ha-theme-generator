@@ -7,7 +7,7 @@ from typing import Any
 import voluptuous as vol
 import yaml
 
-from homeassistant.components import frontend, panel_custom
+from homeassistant.components import panel_custom
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_NAME
@@ -26,48 +26,12 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-RGB_SCHEMA = vol.All(vol.Coerce(str), vol.Length(min=4, max=30))
-
 SAVE_THEME_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_NAME): cv.string,
-        vol.Required("primary_color"): RGB_SCHEMA,
-        vol.Required("accent_color"): RGB_SCHEMA,
-        vol.Required("background_color"): RGB_SCHEMA,
-        vol.Required("card_color"): RGB_SCHEMA,
-        vol.Required("text_color"): RGB_SCHEMA,
-        vol.Optional("rounded", default=24): vol.All(vol.Coerce(int), vol.Range(min=0, max=40)),
+        vol.Required("yaml"): cv.string,
     }
 )
-
-
-def _theme_payload(data: dict[str, Any]) -> dict[str, Any]:
-    rounded = int(data.get("rounded", 24))
-    return {
-        "primary-color": data["primary_color"],
-        "accent-color": data["accent_color"],
-        "primary-background-color": data["background_color"],
-        "secondary-background-color": data["background_color"],
-        "card-background-color": data["card_color"],
-        "ha-card-background": data["card_color"],
-        "primary-text-color": data["text_color"],
-        "secondary-text-color": "rgba(255, 255, 255, 0.72)",
-        "text-primary-color": data["text_color"],
-        "divider-color": "rgba(255, 255, 255, 0.12)",
-        "ha-card-border-radius": f"{rounded}px",
-        "ha-card-box-shadow": "0 18px 40px rgba(0, 0, 0, 0.28)",
-        "app-header-background-color": data["background_color"],
-        "app-header-text-color": data["text_color"],
-        "sidebar-background-color": data["background_color"],
-        "sidebar-text-color": data["text_color"],
-        "sidebar-selected-background-color": data["card_color"],
-        "sidebar-selected-text-color": data["accent_color"],
-        "state-icon-color": data["accent_color"],
-        "state-icon-active-color": data["primary_color"],
-        "switch-checked-color": data["accent_color"],
-        "mdc-theme-primary": data["primary_color"],
-        "mdc-theme-secondary": data["accent_color"],
-    }
 
 
 def _write_theme_file(config_path: str, data: dict[str, Any]) -> Path:
@@ -75,13 +39,18 @@ def _write_theme_file(config_path: str, data: dict[str, Any]) -> Path:
     themes_dir.mkdir(parents=True, exist_ok=True)
     theme_path = themes_dir / THEME_FILE
 
+    incoming = yaml.safe_load(data["yaml"])
+    if not isinstance(incoming, dict):
+        raise ValueError("Theme YAML ist ungültig.")
+
     existing: dict[str, Any] = {}
     if theme_path.exists():
         loaded = yaml.safe_load(theme_path.read_text(encoding="utf-8"))
         if isinstance(loaded, dict):
             existing = loaded
 
-    existing[data[CONF_NAME]] = _theme_payload(data)
+    existing.update(incoming)
+
     theme_path.write_text(
         yaml.safe_dump(existing, allow_unicode=True, sort_keys=False),
         encoding="utf-8",
