@@ -600,7 +600,8 @@ class ThemeGeneratorPanel extends HTMLElement {
 
     this.shadowRoot.querySelector("#themeName").addEventListener("input", (ev) => {
       this.themeName = ev.target.value || "Silvia HA Theme";
-      this.render();
+      const pre = this.shadowRoot.querySelector("pre");
+      if (pre) pre.textContent = this.getYaml();
     });
 
     this.shadowRoot.querySelector("#saveBtn").addEventListener("click", () => this.saveTheme());
