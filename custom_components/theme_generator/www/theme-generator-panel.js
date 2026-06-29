@@ -4,7 +4,7 @@ class ThemeGeneratorPanel extends HTMLElement {
     this.attachShadow({ mode: "open" });
 
     this.storageKey = "theme_generator_state_v2";
-    this.themeName = "Silvia HA Theme";
+    this.themeName = "Theme Generator";
     this.themeFiles = [];
     this.selectedFile = "";
     this.selectedTheme = "";
@@ -273,6 +273,18 @@ class ThemeGeneratorPanel extends HTMLElement {
       .replaceAll(">", "&gt;");
   }
 
+  escapeText(value) {
+    return String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;");
+  }
+
+  getEditorYaml() {
+    const editor = this.shadowRoot.querySelector("#yamlEditor");
+    return editor ? editor.value : this.getYaml();
+  }
+
   isColor(value) {
     return typeof value === "string" && (value.startsWith("#") || value.startsWith("rgba(") || value.startsWith("rgb("));
   }
@@ -355,8 +367,8 @@ class ThemeGeneratorPanel extends HTMLElement {
   }
 
   refreshYaml() {
-    const pre = this.shadowRoot.querySelector("pre");
-    if (pre) pre.textContent = this.getYaml();
+    const editor = this.shadowRoot.querySelector("#yamlEditor");
+    if (editor) editor.value = this.getYaml();
   }
 
   updateValue(key, value, rerender = true) {
@@ -421,7 +433,7 @@ class ThemeGeneratorPanel extends HTMLElement {
   }
 
   async copyYaml() {
-    await navigator.clipboard.writeText(this.getYaml());
+    await navigator.clipboard.writeText(this.getEditorYaml());
     alert("YAML wurde kopiert.");
   }
 
@@ -435,7 +447,7 @@ class ThemeGeneratorPanel extends HTMLElement {
 
     await this._hass.callService("theme_generator", "save_theme", {
       name: this.themeName,
-      yaml: this.getYaml(),
+      yaml: this.getEditorYaml(),
     });
 
     alert("Theme wurde gespeichert. Danach in Home Assistant unter Profil → Theme auswählen.");
@@ -475,7 +487,6 @@ class ThemeGeneratorPanel extends HTMLElement {
           </select>
         </div>
 
-        <button class="secondary" id="reloadThemeListBtn">Aktualisieren</button>
         <button id="loadThemeBtn">Theme laden</button>
       </div>
     `;
@@ -626,7 +637,7 @@ class ThemeGeneratorPanel extends HTMLElement {
 
         .theme-loader {
           display: grid;
-          grid-template-columns: 1fr 1fr auto auto;
+          grid-template-columns: 1fr 1fr auto;
           gap: 10px;
           align-items: end;
           margin-bottom: 16px;
@@ -782,16 +793,21 @@ class ThemeGeneratorPanel extends HTMLElement {
           margin-top: 4px;
         }
 
-        pre {
+        textarea.yaml-editor {
+          width: 100%;
+          min-height: 560px;
+          box-sizing: border-box;
           background: ${bg};
           border: 1px solid ${border};
           border-radius: 16px;
           color: ${text};
           padding: 18px;
           overflow: auto;
-          max-height: 520px;
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
           font-size: 13px;
           line-height: 1.45;
+          resize: vertical;
+          white-space: pre;
         }
 
         .yaml-title {
@@ -856,15 +872,15 @@ class ThemeGeneratorPanel extends HTMLElement {
               ${this.renderPreviewCard("Alarm", "Bereit", "!", "state-alarm_control_panel-armed_home-color")}
             </div>
 
-            <div class="yaml-title">YAML</div>
-            <pre>${this.getYaml()}</pre>
+            <div class="yaml-title">YAML Editor</div>
+            <textarea id="yamlEditor" class="yaml-editor" spellcheck="false">${this.escapeText(this.getYaml())}</textarea>
           </div>
         </div>
       </div>
     `;
 
     this.shadowRoot.querySelector("#themeName").addEventListener("input", (ev) => {
-      this.themeName = ev.target.value || "Silvia HA Theme";
+      this.themeName = ev.target.value || "Theme Generator";
       this.persistState();
       this.refreshYaml();
     });
@@ -872,11 +888,8 @@ class ThemeGeneratorPanel extends HTMLElement {
     this.shadowRoot.querySelector("#saveBtn").addEventListener("click", () => this.saveTheme());
     this.shadowRoot.querySelector("#copyBtn").addEventListener("click", () => this.copyYaml());
 
-    this.shadowRoot.querySelector("#reloadThemeListBtn")?.addEventListener("click", () => {
-      this.themeFiles = [];
-      this.selectedFile = "";
-      this.selectedTheme = "";
-      this.loadThemeList();
+    this.shadowRoot.querySelector("#yamlEditor")?.addEventListener("input", () => {
+      // YAML kann direkt bearbeitet werden. Speichern/Kopieren verwendet den Editorinhalt.
     });
 
     this.shadowRoot.querySelector("#loadThemeBtn")?.addEventListener("click", () => this.loadSelectedTheme());
