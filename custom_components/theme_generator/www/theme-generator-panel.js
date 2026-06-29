@@ -245,7 +245,46 @@ class ThemeGeneratorPanel extends HTMLElement {
   }
 
   isColor(value) {
-    return typeof value === "string" && value.startsWith("#");
+    return typeof value === "string" && (value.startsWith("#") || value.startsWith("rgba(") || value.startsWith("rgb("));
+  }
+
+  hexToRgb(hex) {
+    const clean = hex.replace("#", "").trim();
+    if (clean.length !== 6) return { r: 0, g: 0, b: 0 };
+    return {
+      r: parseInt(clean.substring(0, 2), 16),
+      g: parseInt(clean.substring(2, 4), 16),
+      b: parseInt(clean.substring(4, 6), 16),
+    };
+  }
+
+  rgbToHex(r, g, b) {
+    return "#" + [r, g, b].map(x => {
+      const hex = Number(x).toString(16);
+      return hex.length === 1 ? "0" + hex : hex;
+    }).join("");
+  }
+
+  colorToHex(value) {
+    if (!value) return "#000000";
+    if (value.startsWith("#")) return value;
+    const match = value.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+    if (!match) return "#000000";
+    return this.rgbToHex(match[1], match[2], match[3]);
+  }
+
+  colorToAlpha(value) {
+    if (!value || value.startsWith("#") || value.startsWith("rgb(")) return 100;
+    const match = value.match(/rgba\(\d+,\s*\d+,\s*\d+,\s*([0-9.]+)\)/);
+    if (!match) return 100;
+    return Math.round(parseFloat(match[1]) * 100);
+  }
+
+  makeColorValue(hex, alpha) {
+    const cleanAlpha = Number(alpha);
+    if (cleanAlpha >= 100) return hex;
+    const rgb = this.hexToRgb(hex);
+    return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${(cleanAlpha / 100).toFixed(2)})`;
   }
 
   yamlValue(value) {
@@ -317,12 +356,20 @@ class ThemeGeneratorPanel extends HTMLElement {
       `;
     }
 
+    const hexValue = this.colorToHex(value);
+    const alphaValue = this.colorToAlpha(value);
+
     return `
       <label>
         <span>${label}</span>
         <div class="color-row">
-          <input type="color" value="${value}" data-key="${key}" />
+          <input type="color" value="${hexValue}" data-color-key="${key}" />
           <input class="hex-input" value="${value}" data-key="${key}" />
+        </div>
+        <div class="alpha-row">
+          <span>Transparenz</span>
+          <input type="range" min="0" max="100" value="${alphaValue}" data-alpha-key="${key}" />
+          <strong>${alphaValue}%</strong>
         </div>
         <small>${key}</small>
       </label>
@@ -461,6 +508,26 @@ class ThemeGeneratorPanel extends HTMLElement {
           display: grid;
           grid-template-columns: 74px 1fr;
           gap: 8px;
+        }
+
+        .alpha-row {
+          display: grid;
+          grid-template-columns: auto 1fr 48px;
+          gap: 8px;
+          align-items: center;
+          margin-top: 8px;
+          color: ${secondary};
+          font-size: 12px;
+        }
+
+        .alpha-row input[type="range"] {
+          padding: 0;
+        }
+
+        .alpha-row strong {
+          color: ${text};
+          text-align: right;
+          font-size: 12px;
         }
 
         details {
@@ -640,6 +707,24 @@ class ThemeGeneratorPanel extends HTMLElement {
     this.shadowRoot.querySelectorAll("input[data-key]").forEach(input => {
       input.addEventListener("input", (ev) => {
         this.updateValue(ev.target.dataset.key, ev.target.value);
+      });
+    });
+
+    this.shadowRoot.querySelectorAll("input[data-color-key]").forEach(input => {
+      input.addEventListener("input", (ev) => {
+        const key = ev.target.dataset.colorKey;
+        const current = this.values[key] || ev.target.value;
+        const alpha = this.colorToAlpha(current);
+        this.updateValue(key, this.makeColorValue(ev.target.value, alpha));
+      });
+    });
+
+    this.shadowRoot.querySelectorAll("input[data-alpha-key]").forEach(input => {
+      input.addEventListener("input", (ev) => {
+        const key = ev.target.dataset.alphaKey;
+        const current = this.values[key] || "#000000";
+        const hex = this.colorToHex(current);
+        this.updateValue(key, this.makeColorValue(hex, ev.target.value));
       });
     });
 
